@@ -15,18 +15,38 @@ class APILogTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: ListTile(
         onTap: onTap,
-        leading: _buildIcon(),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        leading: _buildLeading(),
         title: Text(
           '#${entry.metadata?['requestId'] ?? '??'} ${entry.endpoint}',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+            fontFamily: 'monospace',
+          ),
         ),
-        subtitle: Text(
-          _getSubtitle(),
-          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Row(
+            children: [
+              _buildMethodBadge(),
+              const SizedBox(width: 8),
+              if (entry.type == LogType.response || entry.type == LogType.error) ...[
+                _buildStatusBadge(),
+                const SizedBox(width: 8),
+              ],
+              Text(
+                _getDurationText(),
+                style: TextStyle(color: Colors.grey[600], fontSize: 11),
+              ),
+            ],
+          ),
         ),
         trailing: Text(
           _formatTime(entry.timestamp),
@@ -36,38 +56,101 @@ class APILogTile extends StatelessWidget {
     );
   }
 
-  Widget _buildIcon() {
+  Widget _buildLeading() {
+    IconData icon;
+    Color color;
     switch (entry.type) {
       case LogType.request:
-        return const Icon(Icons.arrow_upward, color: Colors.blue);
+        icon = Icons.upload;
+        color = Colors.blue;
+        break;
       case LogType.response:
-        return const Icon(Icons.arrow_downward, color: Colors.green);
+        icon = Icons.download;
+        color = Colors.green;
+        break;
       case LogType.error:
-        return const Icon(Icons.error, color: Colors.red);
+        icon = Icons.error_outline;
+        color = Colors.red;
+        break;
       case LogType.warning:
-        return const Icon(Icons.warning, color: Colors.orange);
+        icon = Icons.warning_amber_rounded;
+        color = Colors.orange;
+        break;
       case LogType.schemaChange:
-        return const Icon(Icons.schema, color: Colors.purple);
+        icon = Icons.schema_outlined;
+        color = Colors.purple;
+        break;
       case LogType.performance:
-        return const Icon(Icons.speed, color: Colors.deepOrange);
+        icon = Icons.speed;
+        color = Colors.deepOrange;
+        break;
     }
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: color.withAlpha(20),
+        shape: BoxShape.circle,
+      ),
+      child: Icon(icon, color: color, size: 20),
+    );
   }
 
-  String _getSubtitle() {
-    switch (entry.type) {
-      case LogType.request:
-        return "Method: ${entry.metadata?['method'] ?? 'Unknown'}";
-      case LogType.response:
-        return "Status: ${entry.metadata?['statusCode'] ?? 'Unknown'} • ${entry.metadata?['durationMs'] ?? 0}ms";
-      case LogType.error:
-        return "Error: ${entry.metadata?['errorMessage'] ?? 'Unknown'}";
-      case LogType.warning:
-        return "Warning: ${entry.metadata?['warningType'] ?? 'Unknown'}";
-      case LogType.schemaChange:
-        return "Schema: ${entry.metadata?['changeType'] ?? 'Unknown'}";
-      case LogType.performance:
-        return "Performance: ${entry.metadata?['averageTimeMs']?.toStringAsFixed(1) ?? '0.0'}ms (Avg)";
+  Widget _buildMethodBadge() {
+    final method = entry.metadata?['method']?.toString().toUpperCase() ?? 'GET';
+    Color color;
+    switch (method) {
+      case 'GET': color = Colors.cyan; break;
+      case 'POST': color = Colors.green; break;
+      case 'PUT':
+      case 'PATCH': color = Colors.orange; break;
+      case 'DELETE': color = Colors.red; break;
+      default: color = Colors.blue;
     }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withAlpha(30),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withAlpha(100), width: 0.5),
+      ),
+      child: Text(
+        method,
+        style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge() {
+    final status = entry.metadata?['statusCode'] ?? 0;
+    Color color;
+    if (status >= 200 && status < 300) {
+      color = Colors.green;
+    } else if (status >= 400 && status < 500) {
+      color = Colors.orange;
+    } else if (status >= 500) {
+      color = Colors.red;
+    } else {
+      color = Colors.grey;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        status.toString(),
+        style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  String _getDurationText() {
+    final ms = entry.metadata?['durationMs'];
+    if (ms == null) return '';
+    return '${ms}ms';
   }
 
   String _formatTime(DateTime time) {

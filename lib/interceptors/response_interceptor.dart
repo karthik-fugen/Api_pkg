@@ -8,11 +8,13 @@ import '../core/inspector_config.dart';
 import '../profiler/api_profiler.dart';
 import '../session/session_recorder.dart';
 import '../session/session_models.dart';
+import '../core/inspector_state.dart';
 
 class ResponseInterceptor extends Interceptor {
   static final InspectorConfig _config = InspectorConfig();
   static final SchemaRegistry _registry = SchemaRegistry();
   static final SessionRecorder _sessionRecorder = SessionRecorder();
+  static final InspectorState _state = InspectorState();
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
@@ -26,6 +28,12 @@ class ResponseInterceptor extends Interceptor {
     final duration = startTime != null ? DateTime.now().difference(startTime) : Duration.zero;
     final endpoint = response.requestOptions.path;
     final requestId = response.requestOptions.extra['requestId'] as int;
+
+    // Update live state
+    _state.updateResponse(
+      durationMs: duration.inMilliseconds,
+      method: response.requestOptions.method,
+    );
 
     ConsoleLogger.logResponse(
       requestId: requestId,
@@ -84,6 +92,9 @@ class ResponseInterceptor extends Interceptor {
     final startTime = err.requestOptions.extra['startTime'] as DateTime?;
     final duration = startTime != null ? DateTime.now().difference(startTime) : Duration.zero;
     final requestId = err.requestOptions.extra['requestId'] as int?;
+
+    // Update live state
+    _state.incrementError();
 
     ConsoleLogger.logError(
       endpoint: err.requestOptions.path,

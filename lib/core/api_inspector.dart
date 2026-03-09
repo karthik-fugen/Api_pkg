@@ -24,8 +24,12 @@ class APIInspector {
   static Dio? _dio;
 
   /// Initialize the API Inspector.
-  static void initialize({bool enabled = true}) {
+  static void initialize({
+    bool enabled = true,
+    bool showInRelease = false,
+  }) {
     _config.enabled = enabled;
+    _config.showInRelease = showInRelease;
   }
 
   /// Replay a recorded request by its ID.
@@ -92,9 +96,10 @@ class APIInspector {
   }
 
   /// Wrap your app with the API Inspector overlay.
-  /// Only appears in debug mode.
+  /// Appears in debug mode, or in release if showInRelease is true.
   static Widget wrap(Widget app) {
-    if (!kDebugMode || !_config.enabled) return app;
+    final shouldShow = _config.enabled && (kDebugMode || _config.showInRelease);
+    if (!shouldShow) return app;
     return APIInspectorOverlay(child: app);
   }
 

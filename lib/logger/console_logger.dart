@@ -17,6 +17,7 @@ class ConsoleLogger {
   static final LogStorage _storage = LogStorage();
   static final InspectorConfig _config = InspectorConfig();
   static int _requestIdCounter = 0;
+  static final Map<String, DateTime> _lastRequestTimes = {};
 
   static int generateRequestId() => ++_requestIdCounter;
 
@@ -54,6 +55,14 @@ class ConsoleLogger {
     return LogColors.red;
   }
 
+  static String _getPerformanceBar(int ms) {
+    const totalBars = 10;
+    final filledBars = (ms / 150).clamp(1, totalBars).toInt();
+    final bar = '■' * filledBars + '□' * (totalBars - filledBars);
+    final color = _getDurationColor(ms);
+    return _color(color, '[$bar]');
+  }
+
   static void logRequest({
     required int requestId,
     required String method,
@@ -63,10 +72,16 @@ class ConsoleLogger {
     Map<String, dynamic>? queryParameters,
     dynamic body,
   }) {
-    final timestamp = _formatTimestamp(DateTime.now());
+    final now = DateTime.now();
+    final timestamp = _formatTimestamp(now);
     final maskedHeaders = _maskHeaders(headers);
     final curl = _config.enableCurlGeneration ? _generateCurl(method, fullUrl, maskedHeaders, body) : '';
     final methodColor = _getMethodColor(method);
+
+    // Rapid Fire Detection
+    final lastTime = _lastRequestTimes[endpoint];
+    final isRapidFire = lastTime != null && now.difference(lastTime).inMilliseconds < 200;
+    _lastRequestTimes[endpoint] = now;
     
     final consoleBuffer = StringBuffer();
     final storageBuffer = StringBuffer();
@@ -79,6 +94,11 @@ class ConsoleLogger {
     consoleBuffer.writeln('┃ ${_color(LogColors.cyan, 'URL:      ')} $fullUrl');
     consoleBuffer.writeln('┃ ${_color(LogColors.cyan, 'Endpoint: ')} $endpoint');
     consoleBuffer.writeln('┃ ${_color(LogColors.cyan, 'Time:     ')} $timestamp');
+
+    if (isRapidFire) {
+      consoleBuffer.writeln('┃ ⚠️  ${_color(LogColors.red, _bold('[RAPID FIRE CALL DETECTED]'))}');
+      consoleBuffer.writeln('┃    Called again in ${_color(LogColors.red, '${now.difference(lastTime!).inMilliseconds}ms')}');
+    }
 
     // Storage Output (Plain text)
     storageBuffer.writeln('==============================');
@@ -162,6 +182,7 @@ class ConsoleLogger {
     final maskedHeaders = _maskHeaders(headers);
     final statusColor = _getStatusColor(statusCode);
     final durationColor = _getDurationColor(duration.inMilliseconds);
+    final perfBar = _getPerformanceBar(duration.inMilliseconds);
 
     final consoleBuffer = StringBuffer();
     final storageBuffer = StringBuffer();
@@ -171,7 +192,7 @@ class ConsoleLogger {
     consoleBuffer.writeln('┃ 📦 ${_color(LogColors.green, _bold('API RESPONSE #$requestId'))} [${_color(statusColor, _bold(statusCode.toString()))}]');
     consoleBuffer.writeln(_color(LogColors.green, '┠━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
     consoleBuffer.writeln('┃ ${_color(LogColors.yellow, 'Status:   ')} ${_color(statusColor, _bold(statusCode.toString()))}');
-    consoleBuffer.writeln('┃ ${_color(LogColors.yellow, 'Time:     ')} ${_color(durationColor, '${duration.inMilliseconds}ms')}');
+    consoleBuffer.writeln('┃ ${_color(LogColors.yellow, 'Time:     ')} ${_color(durationColor, '${duration.inMilliseconds}ms')} $perfBar');
     consoleBuffer.writeln('┃ ${_color(LogColors.yellow, 'Size:     ')} $sizeStr');
     consoleBuffer.writeln('┃ ${_color(LogColors.yellow, 'Timestamp:')} $timestamp');
 
@@ -410,9 +431,9 @@ class ConsoleLogger {
   }) {
     print('💥 ${_color(LogColors.red, _bold('[API BREAKING CHANGE DETECTED]'))}');
     print('${_color(LogColors.red, 'Endpoint:')} $endpoint');
-    print('${_color(LogColors.red, 'Field:')} $field');
-    print('${_color(LogColors.red, 'Previous Type:')} $previousType');
-    print('${_color(LogColors.red, 'New Type:')} $newType\n');
+    print('${_color(LogColors.red, 'Field:   ')} $field');
+    print('┃ ${_color(LogColors.red, "- $previousType")} (Previous)');
+    print('┃ ${_color(LogColors.green, "+ $newType")} (New Type)\n');
 
     final message = '\n[API BREAKING CHANGE DETECTED]\nEndpoint: $endpoint\nField: $field\nPrevious Type: $previousType\nNew Type: $newType\n';
 

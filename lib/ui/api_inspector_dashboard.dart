@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'log_storage.dart';
 import 'api_log_tile.dart';
 import '../core/api_inspector.dart';
@@ -9,6 +10,8 @@ import '../profiler/timeline_builder.dart';
 
 import '../session/session_recorder.dart';
 import '../session/session_exporter.dart';
+
+import '../core/inspector_state.dart';
 
 class APILogDashboard extends StatefulWidget {
   const APILogDashboard({super.key});
@@ -21,10 +24,21 @@ class _APILogDashboardState extends State<APILogDashboard> {
   final LogStorage _storage = LogStorage();
   final MetricsRegistry _metricsRegistry = MetricsRegistry();
   final SessionRecorder _sessionRecorder = SessionRecorder();
+  final InspectorState _inspectorState = InspectorState();
   String _filter = 'All';
+  String _searchQuery = '';
 
   List<APILogEntry> get _filteredLogs {
-    final logs = _storage.logs;
+    var logs = _storage.logs;
+
+    if (_searchQuery.isNotEmpty) {
+      logs = logs.where((l) {
+        final endpointMatch = l.endpoint.toLowerCase().contains(_searchQuery.toLowerCase());
+        final statusCodeMatch = l.metadata?['statusCode']?.toString().contains(_searchQuery) ?? false;
+        return endpointMatch || statusCodeMatch;
+      }).toList();
+    }
+
     if (_filter == 'All') return logs.reversed.toList();
     if (_filter == 'Requests') return logs.where((l) => l.type == LogType.request).toList().reversed.toList();
     if (_filter == 'Errors') return logs.where((l) => l.type == LogType.error).toList().reversed.toList();
@@ -55,6 +69,7 @@ class _APILogDashboardState extends State<APILogDashboard> {
                   _storage.clear();
                   _metricsRegistry.clear();
                   _sessionRecorder.clear();
+                  _inspectorState.resetErrors();
                 });
               },
             ),
@@ -74,6 +89,7 @@ class _APILogDashboardState extends State<APILogDashboard> {
   Widget _buildLogsTab() {
     return Column(
       children: [
+        _buildSearchBar(),
         _buildFilterBar(),
         Expanded(
           child: ListView.builder(
@@ -88,6 +104,28 @@ class _APILogDashboardState extends State<APILogDashboard> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: TextField(
+        decoration: InputDecoration(
+          hintText: 'Search endpoint or status code...',
+          prefixIcon: const Icon(Icons.search),
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(vertical: 8),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          filled: true,
+          fillColor: Colors.grey[100],
+        ),
+        onChanged: (value) {
+          setState(() {
+            _searchQuery = value;
+          });
+        },
+      ),
     );
   }
 
@@ -297,24 +335,60 @@ class _APILogDashboardState extends State<APILogDashboard> {
               child: ListView(
                 controller: scrollController,
                 children: [
-                  Text(
-                    'Log Details',
-                    style: Theme.of(context).textTheme.headlineSmall,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Log Details',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.copy_all),
+                        tooltip: 'Copy Full Log',
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: entry.message));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Log copied to clipboard')),
+                          );
+                        },
+                      ),
+                    ],
                   ),
                   const Divider(),
                   _detailRow('Endpoint', entry.endpoint),
                   _detailRow('Timestamp', entry.timestamp.toString()),
                   _detailRow('Type', entry.type.toString().split('.').last),
                   const SizedBox(height: 16),
-                  if (entry.type == LogType.request && entry.metadata?['requestId'] != null)
-                    ElevatedButton.icon(
-                      onPressed: () async {
-                        Navigator.pop(context);
-                        await APIInspector.replayRequest(entry.metadata!['requestId']);
-                      },
-                      icon: const Icon(Icons.replay),
-                      label: const Text('Replay Request'),
-                    ),
+                  Row(
+                    children: [
+                      if (entry.type == LogType.request && entry.metadata?['requestId'] != null)
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              Navigator.pop(context);
+                              await APIInspector.replayRequest(entry.metadata!['requestId']);
+                            },
+                            icon: const Icon(Icons.replay),
+                            label: const Text('Replay'),
+                          ),
+                        ),
+                      if (entry.metadata?['curl'] != null && entry.metadata!['curl'].toString().isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Clipboard.setData(ClipboardData(text: entry.metadata!['curl']));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('CURL copied')),
+                              );
+                            },
+                            icon: const Icon(Icons.code),
+                            label: const Text('Copy CURL'),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                   const SizedBox(height: 16),
                   const Text('Raw Log Output:', style: TextStyle(fontWeight: FontWeight.bold)),
                   Container(

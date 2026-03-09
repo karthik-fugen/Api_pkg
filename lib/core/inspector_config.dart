@@ -34,6 +34,9 @@ class InspectorConfig {
   /// Whether to use ANSI colors in the terminal logs.
   bool enableColoredLogs = true;
 
+  /// Whether to show the overlay even in release mode.
+  bool showInRelease = false;
+
   /// Map of endpoint to list of expected fields.
   final Map<String, List<String>> schemas = {};
 
