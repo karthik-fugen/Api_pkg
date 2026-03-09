@@ -14,33 +14,22 @@ Automatically intercepts and logs all outgoing API requests and incoming respons
 *   **Response Details:** Status Code, Headers, Pretty-printed Body, Size, and Duration.
 *   **CURL Command Generation:** Automatically generates a reproducible `curl` command for every request.
 *   **Sensitive Data Masking:** Automatically hides sensitive headers like `Authorization`, `API-Key`, and `Password`.
-*   **Request ID Tracking:** Assigns unique IDs (e.g., `#123`) to link requests and responses clearly.
+*   **Heatmap Timing:** Visual ASCII performance bars in the terminal.
+*   **Rapid-Fire Detection:** Warns if an API is called too many times in a short interval (<200ms).
 
-### 🧠 Smart Error Detection
+### 🧠 Smart Error Detection & Schema Intelligence
 Detects common API issues automatically:
-*   **Slow APIs:** Warns when response times exceed thresholds.
-*   **Invalid JSON:** Identifies malformed or unexpected response formats.
-*   **Null Values:** Scans for unexpected null fields in JSON maps.
-*   **Missing Fields:** Detects when required keys are absent.
+*   **Automatic Schema Learning:** Remembers response structures and alerts on **Breaking Changes**.
 *   **Type Mismatches:** Warns when a field's type differs from the expected model.
+*   **Null & Missing Fields:** Detects when required keys are absent or null.
 
-### 🔍 Schema Intelligence
-Automatically learns API response structures and monitors for backend changes:
-*   **New Field Detection:** Alerts when the backend adds new data.
-*   **Removed Field Detection:** Alerts when previously existing fields disappear.
-*   **Breaking Change Detection:** Identifies when field types change.
+### 📊 Performance Profiler & Session Recorder
+*   **Metrics:** Monitor average response times and slowest endpoints.
+*   **Timeline:** View a chronological history of all network calls.
+*   **Recording:** Capture full API sessions and export them as **JSON** for sharing.
 
-### 📊 Performance Profiler
-Tracks critical endpoint metrics:
-*   **Average Response Time:** Monitor the latency of specific endpoints.
-*   **Slow Endpoint Ranking:** Identify your worst-performing APIs.
-*   **API Timeline:** View a chronological history of all network calls.
-
-### 🎬 Session Recorder
-Record entire sequences of API activity and export them as a structured JSON file for sharing with backend teams or reproducing issues.
-
-### 🛠 Visual Debug Dashboard
-A floating, draggable debug button (visible only in debug mode) opens an in-app dashboard to inspect logs, performance, and sessions visually.
+### 🛠 Visual Debug Dashboard (In-App)
+A floating, draggable **Smart Button** (visible across all pages) shows live response times and error badges. Open the dashboard to search logs, replay requests, or copy CURLs.
 
 ---
 
@@ -55,113 +44,64 @@ dependencies:
 
 ---
 
-## ⚡️ Quick Start
+## ⚡️ Quick Start (2-Step Setup)
 
-Initialize the inspector and wrap your application widget to enable the debug overlay. The overlay button will automatically appear only in **debug mode**.
+### 1. Configure your App
+Initialize the inspector and wrap your app using the `builder` pattern. This ensures the floating button is **visible on every page**.
 
 ```dart
 import 'package:flutter_api_inspector/flutter_api_inspector.dart';
 
 void main() {
-  // 1. Initialize the inspector
-  APIInspector.initialize();
+  APIInspector.initialize(showInRelease: true); // Enable for QA builds
+  runApp(const MyApp());
+}
 
-  runApp(
-    // 2. Wrap your app with the overlay
-    APIInspector.wrap(
-      const MyApp(),
-    ),
-  );
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      // Essential for global navigation and visibility
+      navigatorKey: APIInspector.navigatorKey, 
+      builder: (context, child) => APIInspector.wrap(child!),
+      home: const HomePage(),
+    );
+  }
 }
 ```
 
-### Attaching to a Dio Client
-
-To start inspecting activity, simply attach the inspector to your `Dio` instance:
+### 2. Attach to your Dio Client
+Simply attach the inspector to your `Dio` instance:
 
 ```dart
 final dio = Dio();
 APIInspector.attach(dio);
 ```
 
-After attaching, all requests made through this `dio` instance will be automatically analyzed and logged.
-
 ---
 
-## 🛠 Advanced Usage
+## 🛠 Advanced Features
 
-### Detailed Configuration
-Customize the inspector's behavior during initialization:
+### API Request Replay
+Tapping a request in the dashboard allows you to **Replay** it instantly using the same headers and body.
 
+### Mock API Responses
+Bypass the network by registering static mocks for any endpoint:
 ```dart
-APIInspector.initialize(
-  enabled: true,                       // Enable/Disable the inspector
-  enableSchemaLearning: true,          // Automatically learn API structures
-  enableBreakingChangeDetection: true, // Alert on schema changes
-  enableDetailedLogs: true,            // Capture headers, bodies, etc.
-  enableCurlGeneration: true,          // Generate CURL commands
-  enablePrettyResponse: true,          // Indent JSON responses
-  maskSensitiveData: true,             // Mask Auth/API keys
-);
+APIInspector.mockResponse("/users", {"id": 1, "name": "Mock User"});
 ```
 
-### Manual Schema Validation
-While the inspector learns schemas automatically, you can also register expected schemas for stricter validation:
-
-```dart
-// Register required fields
-APIInspector.registerSchema("/users", ["id", "name", "email"]);
-
-// Register expected field types
-APIInspector.registerSchemaTypes("/users", {
-  "id": int,
-  "name": String,
-});
-```
-
-### Session Recording & Export
-Capture a full sequence of API calls to share with your team:
-
-```dart
-// Start recording
-APIInspector.startSessionRecording();
-
-// ... perform API calls ...
-
-// Stop recording
-APIInspector.stopSessionRecording();
-
-// Export the session as a JSON string
-final String jsonSession = APIInspector.exportSession();
-```
+### Clipboard Sharing
+*   **Copy CURL:** Copy a failing request to paste into terminal or Postman.
+*   **Copy Full Log:** Share complete diagnostics via Slack or Email.
 
 ---
 
-## 📱 In-App Dashboard
+## 📱 In-App Dashboard Tabs
 
-The dashboard is divided into three functional tabs:
-
-1.  **Logs:** A detailed list of all requests, responses, and warnings. Tapping an entry shows full diagnostics and the generated **CURL command**.
-2.  **Performance:** Metrics showing the slowest endpoints and a chronological timeline of calls.
-3.  **Session:** Controls for recording API sessions, viewing session summaries, and exporting logs to JSON.
-
----
-
-## 🖼 Screenshots
-
-| Debug Overlay | Log Dashboard | Performance Tab | Session Recorder |
-| :---: | :---: | :---: | :---: |
-| ![Overlay Placeholder] | ![Logs Placeholder] | ![Performance Placeholder] | ![Session Placeholder] |
-
----
-
-## 💡 Use Cases
-
-*   **API Integration:** Verify request/response payloads without using external proxy tools.
-*   **Backend Monitoring:** Instantly detect when a backend deployment changes the API contract.
-*   **Performance Tuning:** Identify which endpoints are slowing down your user experience.
-*   **QA & Bug Reporting:** Export full API session logs to include in bug reports for 100% reproducible networking state.
-*   **Production Development:** Debug issues in "staging" or "dev" builds directly on the device.
+1.  **Logs:** Filterable list of all activity with a built-in **Search Bar**.
+2.  **Performance:** Analytics on slow endpoints and a text-based timeline.
+3.  **Session:** Controls for recording and exporting JSON session files.
 
 ---
 

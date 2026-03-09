@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'api_inspector_dashboard.dart';
+import '../core/api_inspector.dart';
 import '../core/inspector_state.dart';
 
 class APIInspectorOverlay extends StatefulWidget {
@@ -50,7 +51,7 @@ class _APIInspectorOverlayState extends State<APIInspectorOverlay> {
         opacity: dragging ? 0.5 : 0.9,
         child: GestureDetector(
           onTap: () {
-            Navigator.of(context).push(
+            APIInspector.navigatorKey.currentState?.push(
               MaterialPageRoute(builder: (context) => const APILogDashboard()),
             );
           },

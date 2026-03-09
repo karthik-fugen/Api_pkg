@@ -20,6 +20,10 @@ class APIInspector {
   static final MetricsRegistry _metricsRegistry = MetricsRegistry();
   static final SessionRecorder _sessionRecorder = SessionRecorder();
 
+  /// Global key to access the navigator from anywhere.
+  /// Pass this to your MaterialApp's navigatorKey property.
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
   /// The last attached Dio instance, used for replaying requests.
   static Dio? _dio;
 
@@ -97,10 +101,11 @@ class APIInspector {
 
   /// Wrap your app with the API Inspector overlay.
   /// Appears in debug mode, or in release if showInRelease is true.
-  static Widget wrap(Widget app) {
+  /// Best used in MaterialApp.builder.
+  static Widget wrap(Widget child) {
     final shouldShow = _config.enabled && (kDebugMode || _config.showInRelease);
-    if (!shouldShow) return app;
-    return APIInspectorOverlay(child: app);
+    if (!shouldShow) return child;
+    return APIInspectorOverlay(child: child);
   }
 
   /// Manually show the API Inspector dashboard.
