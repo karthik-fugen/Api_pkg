@@ -8,6 +8,7 @@ import '../ui/api_inspector_overlay.dart';
 import '../ui/log_storage.dart';
 import 'inspector_config.dart';
 
+import '../logger/console_logger.dart';
 import '../profiler/metrics_registry.dart';
 import '../session/session_recorder.dart';
 import '../session/session_exporter.dart';
@@ -19,12 +20,46 @@ class APIInspector {
   static final MetricsRegistry _metricsRegistry = MetricsRegistry();
   static final SessionRecorder _sessionRecorder = SessionRecorder();
 
+  /// The last attached Dio instance, used for replaying requests.
+  static Dio? _dio;
+
   /// Initialize the API Inspector.
   static void initialize({bool enabled = true}) {
     _config.enabled = enabled;
   }
 
-  /// Start recording a new API session.
+  /// Replay a recorded request by its ID.
+  static Future<Response?> replayRequest(int id) async {
+    final req = _config.recordedRequests[id];
+    if (req == null || _dio == null) {
+      print('❌ Cannot replay request: Request not found or Dio instance not attached.');
+      return null;
+    }
+
+    ConsoleLogger.logReplay(id, req.method, req.url);
+
+    return _dio!.request(
+      req.url,
+      data: req.body,
+      options: Options(
+        method: req.method,
+        headers: req.headers,
+      ),
+    );
+  }
+
+  /// Register a mock response for an endpoint.
+  static void mockResponse(String endpoint, dynamic response) {
+    _config.mockResponses[endpoint] = response;
+  }
+
+  /// Clear all registered mock responses.
+  static void clearMocks() {
+    _config.mockResponses.clear();
+  }
+
+  /// Wrap your app with the API Inspector overlay.
+
   static void startSessionRecording() {
     _sessionRecorder.start();
   }
@@ -87,6 +122,7 @@ class APIInspector {
 
   /// Attach the API Inspector interceptors to a Dio client.
   static void attach(Dio dio) {
+    _dio = dio; // Store for replay
     if (!_config.enabled) return;
 
     // To ensure timing works correctly, we should add our interceptors.

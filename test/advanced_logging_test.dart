@@ -54,4 +54,18 @@ void main() {
     expect(log.message, contains('API RESPONSE #$requestId'));
     expect(log.message, contains('"name": "John"')); // Pretty printed
   });
+
+  test('ConsoleLogger should log replay', () {
+    ConsoleLogger.logReplay(7, 'POST', 'https://api.example.com/posts');
+    final log = storage.logs.first;
+    expect(log.message, contains('REPLAYING REQUEST #7'));
+    expect(log.metadata?['isReplay'], true);
+  });
+
+  test('ConsoleLogger should log mock usage', () {
+    ConsoleLogger.logMockUsage('/users');
+    final log = storage.logs.first;
+    expect(log.message, contains('MOCK RESPONSE USED'));
+    expect(log.metadata?['isMock'], true);
+  });
 }

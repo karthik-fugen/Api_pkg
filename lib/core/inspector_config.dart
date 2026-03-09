@@ -1,9 +1,17 @@
+import 'recorded_request.dart';
+
 class InspectorConfig {
   static final InspectorConfig _instance = InspectorConfig._internal();
   factory InspectorConfig() => _instance;
   InspectorConfig._internal();
 
   bool enabled = true;
+
+  /// Map of endpoint to mock response data.
+  final Map<String, dynamic> mockResponses = {};
+
+  /// Map of request ID to recorded request metadata.
+  final Map<int, RecordedRequest> recordedRequests = {};
 
   /// Whether to automatically learn API schemas.
   bool enableSchemaLearning = true;

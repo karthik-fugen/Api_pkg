@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'log_storage.dart';
 import 'api_log_tile.dart';
+import '../core/api_inspector.dart';
 
 import '../profiler/metrics_registry.dart';
 import '../profiler/api_profiler.dart';
@@ -304,6 +305,16 @@ class _APILogDashboardState extends State<APILogDashboard> {
                   _detailRow('Endpoint', entry.endpoint),
                   _detailRow('Timestamp', entry.timestamp.toString()),
                   _detailRow('Type', entry.type.toString().split('.').last),
+                  const SizedBox(height: 16),
+                  if (entry.type == LogType.request && entry.metadata?['requestId'] != null)
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        Navigator.pop(context);
+                        await APIInspector.replayRequest(entry.metadata!['requestId']);
+                      },
+                      icon: const Icon(Icons.replay),
+                      label: const Text('Replay Request'),
+                    ),
                   const SizedBox(height: 16),
                   const Text('Raw Log Output:', style: TextStyle(fontWeight: FontWeight.bold)),
                   Container(

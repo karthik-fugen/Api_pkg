@@ -449,6 +449,32 @@ class ConsoleLogger {
     ));
   }
 
+  static void logReplay(int requestId, String method, String url) {
+    print('\n🔁 ${_color(LogColors.blue, _bold('REPLAYING REQUEST #$requestId'))}');
+    print('${_color(LogColors.cyan, method.toUpperCase())} $url\n');
+
+    _storage.addLog(APILogEntry(
+      type: LogType.request,
+      endpoint: url,
+      message: '🔁 REPLAYING REQUEST #$requestId\n$method $url',
+      timestamp: DateTime.now(),
+      metadata: {'requestId': requestId, 'isReplay': true},
+    ));
+  }
+
+  static void logMockUsage(String endpoint) {
+    print('🧪 ${_color(LogColors.green, _bold('MOCK RESPONSE USED'))}');
+    print('${_color(LogColors.green, 'Endpoint:')} $endpoint\n');
+
+    _storage.addLog(APILogEntry(
+      type: LogType.response,
+      endpoint: endpoint,
+      message: '🧪 MOCK RESPONSE USED\nEndpoint: $endpoint',
+      timestamp: DateTime.now(),
+      metadata: {'isMock': true},
+    ));
+  }
+
   static String _formatBytes(int bytes) {
     if (bytes <= 0) return "0 B";
     const suffixes = ["B", "KB", "MB", "GB", "TB"];
