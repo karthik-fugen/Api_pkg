@@ -23,6 +23,9 @@ class InspectorConfig {
   /// Whether to mask sensitive data (headers like Authorization).
   bool maskSensitiveData = true;
 
+  /// Whether to use ANSI colors in the terminal logs.
+  bool enableColoredLogs = true;
+
   /// Map of endpoint to list of expected fields.
   final Map<String, List<String>> schemas = {};
 
