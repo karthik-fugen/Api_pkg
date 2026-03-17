@@ -47,6 +47,36 @@ class _APILogDashboardState extends State<APILogDashboard> {
     return logs.reversed.toList();
   }
 
+  void _copyAllLogs() {
+    final logs = _filteredLogs;
+    if (logs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No logs to copy')),
+      );
+      return;
+    }
+
+    final buffer = StringBuffer();
+    buffer.writeln('--- API INSPECTOR BULK EXPORT ($_filter) ---');
+    buffer.writeln('Exported at: ${DateTime.now()}\n');
+
+    for (var i = 0; i < logs.length; i++) {
+      final log = logs[i];
+      buffer.writeln('[$i] ${log.timestamp}');
+      buffer.writeln('Endpoint: ${log.endpoint}');
+      buffer.writeln('Type: ${log.type.name}');
+      if (log.metadata?['statusCode'] != null) {
+        buffer.writeln('Status: ${log.metadata?['statusCode']}');
+      }
+      buffer.writeln('-------------------------------------------');
+    }
+
+    Clipboard.setData(ClipboardData(text: buffer.toString()));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Copied ${logs.length} endpoint(s) to clipboard')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -62,7 +92,14 @@ class _APILogDashboardState extends State<APILogDashboard> {
             ],
           ),
           actions: [
+            // Only show copy button when on the Logs tab (implicitly)
             IconButton(
+              tooltip: 'Copy current logs',
+              icon: const Icon(Icons.copy_all),
+              onPressed: _copyAllLogs,
+            ),
+            IconButton(
+              tooltip: 'Clear all',
               icon: const Icon(Icons.delete_sweep),
               onPressed: () {
                 setState(() {
@@ -75,12 +112,17 @@ class _APILogDashboardState extends State<APILogDashboard> {
             ),
           ],
         ),
-        body: TabBarView(
-          children: [
-            _buildLogsTab(),
-            _buildPerformanceTab(),
-            _buildSessionTab(),
-          ],
+        body: AnimatedBuilder(
+          animation: _storage,
+          builder: (context, _) {
+            return TabBarView(
+              children: [
+                _buildLogsTab(),
+                _buildPerformanceTab(),
+                _buildSessionTab(),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -92,16 +134,18 @@ class _APILogDashboardState extends State<APILogDashboard> {
         _buildSearchBar(),
         _buildFilterBar(),
         Expanded(
-          child: ListView.builder(
-            itemCount: _filteredLogs.length,
-            itemBuilder: (context, index) {
-              final entry = _filteredLogs[index];
-              return APILogTile(
-                entry: entry,
-                onTap: () => _showLogDetails(context, entry),
-              );
-            },
-          ),
+          child: _filteredLogs.isEmpty
+              ? const Center(child: Text('No logs found.'))
+              : ListView.builder(
+                  itemCount: _filteredLogs.length,
+                  itemBuilder: (context, index) {
+                    final entry = _filteredLogs[index];
+                    return APILogTile(
+                      entry: entry,
+                      onTap: () => _showLogDetails(context, entry),
+                    );
+                  },
+                ),
         ),
       ],
     );

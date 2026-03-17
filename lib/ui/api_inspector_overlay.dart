@@ -15,73 +15,101 @@ class APIInspectorOverlay extends StatefulWidget {
 class _APIInspectorOverlayState extends State<APIInspectorOverlay> {
   final InspectorState _state = InspectorState();
   OverlayEntry? _overlayEntry;
+  bool _isOverlayInserted = false;
 
   @override
   void initState() {
     super.initState();
-    // Use a post-frame callback to ensure the overlay is added after the first build.
+    // We use a post-frame callback to insert the overlay after the Navigator is ready.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _showOverlay();
-      }
+      _insertOverlay();
     });
   }
 
   @override
-  void didUpdateWidget(APIInspectorOverlay oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // If the overlay was somehow removed, we might want to re-add it,
-    // but usually, it stays until disposed.
-  }
-
-  @override
   void dispose() {
-    _overlayEntry?.remove();
-    _overlayEntry = null;
+    _removeOverlay();
     super.dispose();
   }
 
-  void _showOverlay() {
-    if (_overlayEntry != null) return;
+  void _insertOverlay() {
+    if (_isOverlayInserted || !mounted) return;
 
     _overlayEntry = OverlayEntry(
-      builder: (context) => Positioned(
-        left: _state.offset.dx,
-        top: _state.offset.dy,
-        child: _DraggableButton(state: _state, onDragEnd: (offset) {
-          _state.updateOffset(offset);
-          _overlayEntry?.markNeedsBuild();
-        }),
-      ),
+      builder: (context) => _PersistentOverlay(state: _state),
     );
 
-    Overlay.of(context).insert(_overlayEntry!);
+    // Find the overlay and insert
+    final overlay = Overlay.of(context, rootOverlay: true);
+    overlay.insert(_overlayEntry!);
+    _isOverlayInserted = true;
+  }
+
+  void _removeOverlay() {
+    if (_isOverlayInserted) {
+      _overlayEntry?.remove();
+      _overlayEntry = null;
+      _isOverlayInserted = false;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    // We still return the child so the app continues to render normally.
+    // The overlay sits in a parallel layer.
     return widget.child;
   }
 }
 
-class _DraggableButton extends StatelessWidget {
+class _PersistentOverlay extends StatelessWidget {
   final InspectorState state;
-  final Function(Offset) onDragEnd;
 
-  const _DraggableButton({required this.state, required this.onDragEnd});
+  const _PersistentOverlay({required this.state});
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: state,
       builder: (context, _) {
-        return Draggable(
-          feedback: _FloatingButton(state: state, dragging: true),
-          childWhenDragging: Container(),
-          onDragEnd: (details) => onDragEnd(details.offset),
-          child: _FloatingButton(state: state, dragging: false),
+        final screenSize = MediaQuery.of(context).size;
+        
+        // Clamp position to screen bounds
+        double left = state.offset.dx;
+        double top = state.offset.dy;
+        
+        // Ensure it doesn't go off screen (with some padding)
+        left = left.clamp(0.0, screenSize.width - 60);
+        top = top.clamp(0.0, screenSize.height - 40);
+
+        return Positioned(
+          left: left,
+          top: top,
+          child: _DraggableButton(state: state),
         );
       },
+    );
+  }
+}
+
+class _DraggableButton extends StatelessWidget {
+  final InspectorState state;
+
+  const _DraggableButton({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    // We wrap in Directionality and Material to ensure icons and text render 
+    // correctly even if the root context is missing them.
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: Draggable(
+        feedback: _FloatingButton(state: state, dragging: true),
+        childWhenDragging: Container(),
+        onDragEnd: (details) {
+          state.updateOffset(details.offset);
+        },
+        child: _FloatingButton(state: state, dragging: false),
+      ),
     );
   }
 }
@@ -100,11 +128,23 @@ class _FloatingButton extends StatelessWidget {
         opacity: dragging ? 0.5 : 0.9,
         child: GestureDetector(
           onTap: () {
-            // Using a fallback to Navigator.of(context) if APIInspector.navigatorKey is not set.
-            final navigator = APIInspector.navigatorKey.currentState ?? Navigator.of(context, rootNavigator: true);
-            navigator.push(
-              MaterialPageRoute(builder: (context) => const APILogDashboard()),
-            );
+            // Priority 1: Use the developer-provided navigatorKey
+            final navigator = APIInspector.navigatorKey.currentState;
+            if (navigator != null) {
+              navigator.push(
+                MaterialPageRoute(builder: (context) => const APILogDashboard()),
+              );
+            } else {
+              // Priority 2: Try to find the root navigator from the current context
+              try {
+                Navigator.of(context, rootNavigator: true).push(
+                  MaterialPageRoute(builder: (context) => const APILogDashboard()),
+                );
+              } catch (e) {
+                debugPrint('APIInspector Error: Could not find Navigator. '
+                    'Did you set APIInspector.navigatorKey in your MaterialApp?');
+              }
+            }
           },
           child: Stack(
             clipBehavior: Clip.none,
@@ -125,11 +165,7 @@ class _FloatingButton extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
-                      Icons.bug_report,
-                      color: Colors.white,
-                      size: 18,
-                    ),
+                    const Icon(Icons.bug_report, color: Colors.white, size: 18),
                     if (state.lastResponseTimeMs > 0) ...[
                       const SizedBox(width: 6),
                       Text(
@@ -155,10 +191,7 @@ class _FloatingButton extends StatelessWidget {
                       color: Colors.red,
                       shape: BoxShape.circle,
                     ),
-                    constraints: const BoxConstraints(
-                      minWidth: 18,
-                      minHeight: 18,
-                    ),
+                    constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
                     child: Text(
                       '${state.errorCount}',
                       style: const TextStyle(
