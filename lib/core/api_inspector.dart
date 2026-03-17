@@ -7,6 +7,7 @@ import '../ui/api_inspector_dashboard.dart';
 import '../ui/api_inspector_overlay.dart';
 import '../ui/log_storage.dart';
 import 'inspector_config.dart';
+import 'inspector_state.dart';
 
 import '../logger/console_logger.dart';
 import '../profiler/metrics_registry.dart';
@@ -19,6 +20,7 @@ class APIInspector {
   static final LogStorage _storage = LogStorage();
   static final MetricsRegistry _metricsRegistry = MetricsRegistry();
   static final SessionRecorder _sessionRecorder = SessionRecorder();
+  static final InspectorState _state = InspectorState();
 
   /// Global key to access the navigator from anywhere.
   /// Pass this to your MaterialApp's navigatorKey property.
@@ -118,6 +120,58 @@ class APIInspector {
   /// Clear all stored logs.
   static void clearLogs() {
     _storage.clear();
+  }
+
+  /// Manually log a response (useful for http package users).
+  static void logManualResponse({
+    required String method,
+    required String endpoint,
+    required int statusCode,
+    required Duration duration,
+    dynamic responseBody,
+    Map<String, dynamic>? headers,
+  }) {
+    if (!_config.enabled) return;
+    
+    final requestId = ConsoleLogger.generateRequestId();
+    
+    // Log to console
+    ConsoleLogger.logResponse(
+      requestId: requestId,
+      statusCode: statusCode,
+      endpoint: endpoint,
+      duration: duration,
+      responseSize: responseBody?.toString().length ?? 0,
+      headers: headers,
+      responseBody: responseBody,
+    );
+
+    // Update state for overlay
+    _state.updateResponse(
+      durationMs: duration.inMilliseconds,
+      method: method,
+    );
+    
+    if (statusCode >= 400) {
+      _state.incrementError();
+    }
+  }
+
+  /// Manually log an error (useful for http package users).
+  static void logManualError({
+    required String endpoint,
+    required String message,
+    int? statusCode,
+  }) {
+    if (!_config.enabled) return;
+    
+    ConsoleLogger.logError(
+      endpoint: endpoint,
+      statusCode: statusCode,
+      message: message,
+    );
+    
+    _state.incrementError();
   }
 
   /// Register an expected response schema for an endpoint.
