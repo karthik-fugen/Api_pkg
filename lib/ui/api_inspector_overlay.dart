@@ -13,45 +13,96 @@ class APIInspectorOverlay extends StatefulWidget {
 }
 
 class _APIInspectorOverlayState extends State<APIInspectorOverlay> {
-  Offset _offset = const Offset(20, 100);
   final InspectorState _state = InspectorState();
+  OverlayEntry? _overlayEntry;
+
+  @override
+  void initState() {
+    super.initState();
+    // Use a post-frame callback to ensure the overlay is added after the first build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _showOverlay();
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(APIInspectorOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // If the overlay was somehow removed, we might want to re-add it,
+    // but usually, it stays until disposed.
+  }
+
+  @override
+  void dispose() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    super.dispose();
+  }
+
+  void _showOverlay() {
+    if (_overlayEntry != null) return;
+
+    _overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        left: _state.offset.dx,
+        top: _state.offset.dy,
+        child: _DraggableButton(state: _state, onDragEnd: (offset) {
+          _state.updateOffset(offset);
+          _overlayEntry?.markNeedsBuild();
+        }),
+      ),
+    );
+
+    Overlay.of(context).insert(_overlayEntry!);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      child: Stack(
-        children: [
-          widget.child,
-          Positioned(
-            left: _offset.dx,
-            top: _offset.dy,
-            child: Draggable(
-              feedback: _buildFloatingButton(context, true),
-              childWhenDragging: Container(),
-              onDragEnd: (details) {
-                setState(() {
-                  _offset = details.offset;
-                });
-              },
-              child: AnimatedBuilder(
-                animation: _state,
-                builder: (context, _) => _buildFloatingButton(context, false),
-              ),
-            ),
-          ),
-        ],
-      ),
+    return widget.child;
+  }
+}
+
+class _DraggableButton extends StatelessWidget {
+  final InspectorState state;
+  final Function(Offset) onDragEnd;
+
+  const _DraggableButton({required this.state, required this.onDragEnd});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: state,
+      builder: (context, _) {
+        return Draggable(
+          feedback: _FloatingButton(state: state, dragging: true),
+          childWhenDragging: Container(),
+          onDragEnd: (details) => onDragEnd(details.offset),
+          child: _FloatingButton(state: state, dragging: false),
+        );
+      },
     );
   }
+}
 
-  Widget _buildFloatingButton(BuildContext context, bool dragging) {
+class _FloatingButton extends StatelessWidget {
+  final InspectorState state;
+  final bool dragging;
+
+  const _FloatingButton({required this.state, required this.dragging});
+
+  @override
+  Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
       child: Opacity(
         opacity: dragging ? 0.5 : 0.9,
         child: GestureDetector(
           onTap: () {
-            APIInspector.navigatorKey.currentState?.push(
+            // Using a fallback to Navigator.of(context) if APIInspector.navigatorKey is not set.
+            final navigator = APIInspector.navigatorKey.currentState ?? Navigator.of(context, rootNavigator: true);
+            navigator.push(
               MaterialPageRoute(builder: (context) => const APILogDashboard()),
             );
           },
@@ -61,7 +112,7 @@ class _APIInspectorOverlayState extends State<APIInspectorOverlay> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: _getButtonColor(),
+                  color: _getButtonColor(state),
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
@@ -79,21 +130,22 @@ class _APIInspectorOverlayState extends State<APIInspectorOverlay> {
                       color: Colors.white,
                       size: 18,
                     ),
-                    if (_state.lastResponseTimeMs > 0) ...[
+                    if (state.lastResponseTimeMs > 0) ...[
                       const SizedBox(width: 6),
                       Text(
-                        '${_state.lastResponseTimeMs}ms',
+                        '${state.lastResponseTimeMs}ms',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
+                          decoration: TextDecoration.none,
                         ),
                       ),
                     ],
                   ],
                 ),
               ),
-              if (_state.errorCount > 0)
+              if (state.errorCount > 0)
                 Positioned(
                   right: -5,
                   top: -5,
@@ -108,11 +160,12 @@ class _APIInspectorOverlayState extends State<APIInspectorOverlay> {
                       minHeight: 18,
                     ),
                     child: Text(
-                      '${_state.errorCount}',
+                      '${state.errorCount}',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
+                        decoration: TextDecoration.none,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -125,9 +178,9 @@ class _APIInspectorOverlayState extends State<APIInspectorOverlay> {
     );
   }
 
-  Color _getButtonColor() {
-    if (_state.errorCount > 0) return Colors.redAccent;
-    if (_state.lastResponseTimeMs > 1000) return Colors.orangeAccent;
+  Color _getButtonColor(InspectorState state) {
+    if (state.errorCount > 0) return Colors.redAccent;
+    if (state.lastResponseTimeMs > 1000) return Colors.orangeAccent;
     return Colors.blueAccent;
   }
 }
